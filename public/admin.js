@@ -1,0 +1,402 @@
+const socket = io();
+
+// Current language
+let currentLang = localStorage.getItem('language') || 'en';
+document.documentElement.lang = currentLang;
+document.documentElement.dir = currentLang === 'ar' ? 'rtl' : 'ltr';
+
+// DOM Elements
+const loginSection = document.getElementById('loginSection');
+const adminSection = document.getElementById('adminSection');
+const adminChat = document.getElementById('adminChat');
+const playersList = document.getElementById('playersList');
+const noPlayersMsg = document.getElementById('noPlayersMsg');
+
+// Team names
+const teamAInput = document.getElementById('teamAInput');
+const teamBInput = document.getElementById('teamBInput');
+const adminTeamAName = document.getElementById('adminTeamAName');
+const adminTeamBName = document.getElementById('adminTeamBName');
+const winTeamAName = document.getElementById('winTeamAName');
+const winTeamBName = document.getElementById('winTeamBName');
+
+// Scores
+const adminScoreA = document.getElementById('adminScoreA');
+const adminScoreB = document.getElementById('adminScoreB');
+const scoreAInput = document.getElementById('scoreAInput');
+const scoreBInput = document.getElementById('scoreBInput');
+
+// Round info
+const adminCurrentRound = document.getElementById('adminCurrentRound');
+const adminMaxRounds = document.getElementById('adminMaxRounds');
+
+// Participant selection
+const startParticipantBtn = document.getElementById('startParticipantBtn');
+const endParticipantBtn = document.getElementById('endParticipantBtn');
+const participantEntriesSection = document.getElementById('participantEntriesSection');
+const participantEntriesList = document.getElementById('participantEntriesList');
+const entriesCount = document.getElementById('entriesCount');
+const noEntriesMsg = document.getElementById('noEntriesMsg');
+const numParticipantsInput = document.getElementById('numParticipantsInput');
+const drawParticipantsBtn = document.getElementById('drawParticipantsBtn');
+
+let isAuthenticated = false;
+let currentPlayers = [];
+let currentParticipantEntries = [];
+
+// Language Toggle - Updated to work with all langBtn elements
+document.querySelectorAll('.langBtn').forEach(btn => {
+  btn.onclick = () => {
+    currentLang = currentLang === 'en' ? 'ar' : 'en';
+    localStorage.setItem('language', currentLang);
+    document.documentElement.lang = currentLang;
+    document.documentElement.dir = currentLang === 'ar' ? 'rtl' : 'ltr';
+    updateTranslations();
+    // Update all language buttons
+    document.querySelectorAll('.langBtn').forEach(b => {
+      b.textContent = currentLang === 'en' ? 'العربية' : 'English';
+    });
+  };
+});
+
+// Update all translations on page
+function updateTranslations() {
+  document.querySelectorAll('[data-translate]').forEach(elem => {
+    const key = elem.getAttribute('data-translate');
+    if (translations[currentLang] && translations[currentLang][key]) {
+      if (elem.tagName === 'INPUT' || elem.tagName === 'TEXTAREA') {
+        elem.placeholder = translations[currentLang][key];
+      } else {
+        elem.textContent = translations[currentLang][key];
+      }
+    }
+  });
+}
+
+// Initial translation
+updateTranslations();
+
+// Login
+document.getElementById('loginBtn').onclick = () => {
+  const passcode = document.getElementById('passcodeInput').value;
+  socket.emit('adminAuth', passcode);
+};
+
+document.getElementById('passcodeInput').addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') {
+    document.getElementById('loginBtn').click();
+  }
+});
+
+socket.on('authSuccess', () => {
+  isAuthenticated = true;
+  loginSection.style.display = 'none';
+  adminSection.style.display = 'block';
+  socket.emit('joinAdminRoom');
+  console.log('✅ Admin authenticated');
+});
+
+socket.on('authFailed', () => {
+  const loginError = document.getElementById('loginError');
+  loginError.style.display = 'block';
+  loginError.textContent = t('wrongPasscode', currentLang);
+  document.getElementById('passcodeInput').value = '';
+});
+
+// Initialize
+socket.on('init', (data) => {
+  if (!isAuthenticated) return;
+
+  // Load messages
+  data.messages.forEach(msg => {
+    addMessageToAdminChat(msg);
+  });
+
+  // Update teams
+  if (data.teams) {
+    updateTeamNamesAdmin(data.teams);
+    teamAInput.value = data.teams.A;
+    teamBInput.value = data.teams.B;
+  }
+
+  // Update score
+  if (data.score) {
+    adminScoreA.textContent = data.score.A;
+    adminScoreB.textContent = data.score.B;
+    scoreAInput.value = data.score.A;
+    scoreBInput.value = data.score.B;
+  }
+
+  // Update round info
+  adminCurrentRound.textContent = data.currentRound;
+  adminMaxRounds.textContent = data.maxRounds;
+
+  // Check if participant selection is active
+  if (data.participantSelectionActive) {
+    startParticipantBtn.style.display = 'none';
+    endParticipantBtn.style.display = 'inline-block';
+    participantEntriesSection.style.display = 'block';
+    noEntriesMsg.style.display = 'none';
+  }
+});
+
+// Update team names
+document.getElementById('updateTeamsBtn').onclick = () => {
+  const teamA = teamAInput.value.trim() || "Team A";
+  const teamB = teamBInput.value.trim() || "Team B";
+  socket.emit('updateTeams', { A: teamA, B: teamB });
+};
+
+socket.on('teamsUpdate', (teams) => {
+  updateTeamNamesAdmin(teams);
+});
+
+function updateTeamNamesAdmin(teams) {
+  adminTeamAName.textContent = teams.A;
+  adminTeamBName.textContent = teams.B;
+  winTeamAName.textContent = teams.A;
+  winTeamBName.textContent = teams.B;
+}
+
+// Update score
+document.getElementById('updateScoreBtn').onclick = () => {
+  const scoreA = parseInt(scoreAInput.value) || 0;
+  const scoreB = parseInt(scoreBInput.value) || 0;
+  socket.emit('updateScore', { A: scoreA, B: scoreB });
+};
+
+document.getElementById('resetScoreBtn').onclick = () => {
+  if (confirm(t('confirmReset', currentLang) || 'Reset score to 0-0?')) {
+    socket.emit('updateScore', { A: 0, B: 0 });
+    scoreAInput.value = 0;
+    scoreBInput.value = 0;
+  }
+};
+
+socket.on('scoreUpdate', (newScore) => {
+  adminScoreA.textContent = newScore.A;
+  adminScoreB.textContent = newScore.B;
+  scoreAInput.value = newScore.A;
+  scoreBInput.value = newScore.B;
+  
+  // Flash animation
+  adminScoreA.style.transform = 'scale(1.2)';
+  adminScoreB.style.transform = 'scale(1.2)';
+  setTimeout(() => {
+    adminScoreA.style.transform = 'scale(1)';
+    adminScoreB.style.transform = 'scale(1)';
+  }, 300);
+});
+
+// Start game
+document.getElementById('startGameBtn').onclick = () => {
+  if (confirm(t('confirmStartGame', currentLang) || 'Start a new guessing game with 2-minute timer?')) {
+    socket.emit('startGame');
+  }
+};
+
+// End round
+document.getElementById('endRoundA').onclick = () => {
+  if (confirm(`${winTeamAName.textContent} ${t('wins', currentLang)}?`)) {
+    socket.emit('endRound', 'A');
+  }
+};
+
+document.getElementById('endRoundB').onclick = () => {
+  if (confirm(`${winTeamBName.textContent} ${t('wins', currentLang)}?`)) {
+    socket.emit('endRound', 'B');
+  }
+};
+
+socket.on('gameStarted', ({ round, maxRounds }) => {
+  adminCurrentRound.textContent = round;
+  adminMaxRounds.textContent = maxRounds;
+});
+
+socket.on('roundEnded', () => {
+  // Round info updated via other events
+});
+
+// Participant Selection
+startParticipantBtn.onclick = () => {
+  socket.emit('startParticipantSelection');
+  startParticipantBtn.style.display = 'none';
+  endParticipantBtn.style.display = 'inline-block';
+  participantEntriesSection.style.display = 'block';
+  noEntriesMsg.style.display = 'none';
+  currentParticipantEntries = [];
+  updateParticipantEntriesList();
+};
+
+endParticipantBtn.onclick = () => {
+  if (confirm(t('confirmEndSelection', currentLang) || 'End participant selection?')) {
+    socket.emit('endParticipantSelection');
+    startParticipantBtn.style.display = 'inline-block';
+    endParticipantBtn.style.display = 'none';
+    participantEntriesSection.style.display = 'none';
+    noEntriesMsg.style.display = 'block';
+    currentParticipantEntries = [];
+    updateParticipantEntriesList();
+  }
+};
+
+drawParticipantsBtn.onclick = () => {
+  const count = parseInt(numParticipantsInput.value) || 5;
+  if (currentParticipantEntries.length === 0) {
+    alert(t('noEntries', currentLang) || 'No participants have entered their numbers yet!');
+    return;
+  }
+  if (count > currentParticipantEntries.length) {
+    alert(`Only ${currentParticipantEntries.length} participants available. Cannot draw ${count}.`);
+    return;
+  }
+  if (confirm(`Draw ${count} random participants?`)) {
+    socket.emit('drawRandomParticipants', count);
+  }
+};
+
+socket.on('participantEntriesUpdate', (entries) => {
+  currentParticipantEntries = entries;
+  updateParticipantEntriesList();
+});
+
+function updateParticipantEntriesList() {
+  entriesCount.textContent = currentParticipantEntries.length;
+  
+  if (currentParticipantEntries.length === 0) {
+    participantEntriesList.innerHTML = `<p style="color: #666;">${t('noEntries', currentLang)}</p>`;
+    return;
+  }
+  
+  participantEntriesList.innerHTML = currentParticipantEntries.map(entry => `
+    <div class="entry-item">
+      <span class="entry-name">${entry.name}</span>
+      <span class="entry-number">#${entry.number}</span>
+    </div>
+  `).join('');
+}
+
+socket.on('participantsDrawn', ({ participants }) => {
+  // Handled via chat message, could add visual highlight here
+  const names = participants.map(p => `${p.name} (#${p.number})`).join(', ');
+  alert(`🎉 Selected: ${names}`);
+});
+
+socket.on('participantSelectionEnded', () => {
+  startParticipantBtn.style.display = 'inline-block';
+  endParticipantBtn.style.display = 'none';
+  participantEntriesSection.style.display = 'none';
+  noEntriesMsg.style.display = 'block';
+});
+
+// Players update
+socket.on('playersUpdate', (players) => {
+  currentPlayers = players;
+  updatePlayersList(players);
+});
+
+function updatePlayersList(players) {
+  if (players.length === 0) {
+    playersList.style.display = 'none';
+    noPlayersMsg.style.display = 'block';
+    return;
+  }
+
+  playersList.style.display = 'block';
+  noPlayersMsg.style.display = 'none';
+
+  playersList.innerHTML = players.map(p => {
+    const statusClass = p.active ? 'status-active' : 'status-eliminated';
+    const statusText = p.active ? '✅ Active' : '❌ Eliminated';
+    const guessText = p.guess ? `Guessed: Team ${p.guess}` : 'No guess yet';
+    
+    return `
+      <div class="player-card ${statusClass}">
+        <div class="player-info">
+          <strong class="player-name" data-player-id="${p.id}">${p.name}</strong>
+          <span class="player-status">${statusText}</span>
+        </div>
+        <div class="player-guess">${guessText}</div>
+      </div>
+    `;
+  }).join('');
+
+  // Add click handlers for kicking
+  document.querySelectorAll('.player-name').forEach(elem => {
+    elem.onclick = () => {
+      const playerId = elem.getAttribute('data-player-id');
+      const playerName = elem.textContent;
+      if (confirm(`Kick ${playerName} from the chat?`)) {
+        socket.emit('kickPlayer', playerId);
+      }
+    };
+  });
+}
+
+// Chat
+socket.on('chatMessage', (msg) => {
+  addMessageToAdminChat(msg);
+});
+
+function addMessageToAdminChat(msg) {
+  const div = document.createElement('div');
+  div.className = "admin-message-item";
+  div.setAttribute('data-msg-id', msg.id);
+  
+  if (msg.user === "System") {
+    div.classList.add("system-message");
+    div.innerHTML = `
+      <span class="msg-content">${msg.text}</span>
+    `;
+  } else {
+    const adminBadge = msg.isAdmin ? '<span class="admin-badge">👑 Admin</span>' : '';
+    div.innerHTML = `
+      <div class="msg-header">
+        <span class="msg-user" data-user="${msg.user}">${msg.user}</span>
+        ${adminBadge}
+        <button class="delete-msg-btn" onclick="deleteMessage('${msg.id}')">×</button>
+      </div>
+      <div class="msg-content">${msg.text}</div>
+    `;
+  }
+  
+  adminChat.appendChild(div);
+  adminChat.scrollTop = adminChat.scrollHeight;
+}
+
+// Send admin message
+document.getElementById('adminSendBtn').onclick = () => {
+  const text = document.getElementById('adminMsgInput').value.trim();
+  if (text) {
+    socket.emit('adminMessage', { text });
+    document.getElementById('adminMsgInput').value = '';
+  }
+};
+
+document.getElementById('adminMsgInput').addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') {
+    document.getElementById('adminSendBtn').click();
+  }
+});
+
+// Delete message
+function deleteMessage(msgId) {
+  if (confirm(t('confirmDelete', currentLang) || 'Delete this message?')) {
+    socket.emit('deleteMessage', msgId);
+  }
+}
+
+socket.on('messageDeleted', (msgId) => {
+  const messages = adminChat.querySelectorAll('.admin-message-item');
+  messages.forEach(msg => {
+    if (msg.getAttribute('data-msg-id') == msgId) {
+      msg.style.opacity = '0';
+      setTimeout(() => msg.remove(), 300);
+    }
+  });
+});
+
+// Error handling
+socket.on('error', ({ msg }) => {
+  alert(msg);
+});

@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Volley-Live | Admin Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="translations.js"></script>
+</head>
+<body>
+  <!-- Admin Login Screen with Header (Same style as audience page) -->
+  <div id="loginSection">
+    <header>
+      <div class="header-content">
+        <div class="header-left">
+          <img src="logo.png" alt="Logo" class="header-logo-simple">
+          <div class="header-text-inline">
+            <h1><span data-translate="adminDashboard">Admin Dashboard</span></h1>
+            <p class="subtitle" data-translate="adminSubtitle">Control the tournament & manage games</p>
+          </div>
+        </div>
+        <div class="language-toggle">
+          <button class="langBtn" class="lang-btn">العربية</button>
+        </div>
+      </div>
+    </header>
+
+    <div class="container">
+      <div class="admin-login-box">
+        <h1>🔐 <span data-translate="adminLogin">Admin Login</span></h1>
+        <p data-translate="adminLoginText">Enter the admin passcode to continue</p>
+        <input id="passcodeInput" type="password" placeholder="Passcode" maxlength="50">
+        <p id="loginError" class="error-msg" style="display:none;" data-translate="wrongPasscode">❌ Wrong passcode!</p>
+        <button id="loginBtn" class="btn-primary" data-translate="loginButton">Login</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Admin Dashboard (After Login) -->
+  <div id="adminSection" style="display:none;">
+    <header>
+      <div class="header-content">
+        <div class="header-left">
+          <img src="logo.png" alt="Logo" class="header-logo-simple">
+          <div class="header-text-inline">
+            <h1><span data-translate="adminDashboard">Admin Dashboard</span></h1>
+            <p class="subtitle" data-translate="adminSubtitle">Control the tournament & manage games</p>
+          </div>
+        </div>
+        <div class="language-toggle">
+          <button class="langBtn" class="lang-btn">العربية</button>
+        </div>
+      </div>
+    </header>
+
+    <div class="admin-container">
+      
+      <!-- Team Setup Section -->
+      <div class="admin-section">
+        <h2>⚙️ <span data-translate="teamSetup">Team Setup</span></h2>
+        <div class="form-group">
+          <label data-translate="teamALabel">Team A Name:</label>
+          <input id="teamAInput" type="text" placeholder="Team A" maxlength="30">
+        </div>
+        <div class="form-group">
+          <label data-translate="teamBLabel">Team B Name:</label>
+          <input id="teamBInput" type="text" placeholder="Team B" maxlength="30">
+        </div>
+        <button id="updateTeamsBtn" class="btn-primary" data-translate="updateTeams">Update Team Names</button>
+      </div>
+
+      <!-- Score Section -->
+      <div class="admin-section">
+        <h2>🏐 <span data-translate="currentScore">Current Score</span></h2>
+        <p class="section-description" data-translate="scoreDescription">Update scores based on the live volleyball game. Reset at the start of each new round.</p>
+        <div class="score-display-admin">
+          <div class="team-score-admin">
+            <h3 id="adminTeamAName">Team A</h3>
+            <div class="score-big" id="adminScoreA">0</div>
+          </div>
+          <div class="vs">VS</div>
+          <div class="team-score-admin">
+            <h3 id="adminTeamBName">Team B</h3>
+            <div class="score-big" id="adminScoreB">0</div>
+          </div>
+        </div>
+        <div class="score-controls">
+          <div class="score-input-group">
+            <label data-translate="teamALabel">Team A:</label>
+            <input id="scoreAInput" type="number" min="0" placeholder="0">
+          </div>
+          <div class="score-input-group">
+            <label data-translate="teamBLabel">Team B:</label>
+            <input id="scoreBInput" type="number" min="0" placeholder="0">
+          </div>
+        </div>
+        <div class="score-buttons">
+          <button id="updateScoreBtn" class="btn-primary" data-translate="updateScore">Update Score</button>
+          <button id="resetScoreBtn" class="btn-secondary" data-translate="resetScore">Reset to 0-0</button>
+        </div>
+      </div>
+
+      <!-- Game Controls Section -->
+      <div class="admin-section">
+        <h2>🎮 <span data-translate="gameControls">Game Controls</span></h2>
+        
+        <!-- Round Counter -->
+        <div class="round-info">
+          <span data-translate="currentRound">Current Round</span>: 
+          <span id="adminCurrentRound">0</span>/<span id="adminMaxRounds">3</span>
+        </div>
+
+        <button id="startGameBtn" class="btn-success btn-large" data-translate="startNewGame">🎮 Start New Game (2-min timer)</button>
+        <p class="btn-description" data-translate="startDescription">This will start a new guessing round with a 2-minute timer</p>
+        
+        <div class="round-controls">
+          <h3 data-translate="endCurrentRound">End Current Round</h3>
+          <div class="round-buttons">
+            <button id="endRoundA" class="btn-guess btn-team-a">
+              <span id="winTeamAName">Team A</span> <span data-translate="wins">Wins</span>
+            </button>
+            <button id="endRoundB" class="btn-guess btn-team-b">
+              <span id="winTeamBName">Team B</span> <span data-translate="wins">Wins</span>
+            </button>
+          </div>
+          <p class="btn-description" data-translate="declareWinner">Declare the winner to eliminate wrong guessers</p>
+        </div>
+      </div>
+
+      <!-- Participant Selection Section -->
+      <div class="admin-section">
+        <h2>🎲 <span data-translate="participantSelection">Participant Selection</span></h2>
+        <p class="section-description">Start an interactive event to randomly select participants for tryout games.</p>
+        
+        <div class="participant-controls">
+          <button id="startParticipantBtn" class="btn-success" data-translate="startSelection">Start Participant Selection</button>
+          <button id="endParticipantBtn" class="btn-secondary" style="display:none;" data-translate="endSelection">End Selection</button>
+        </div>
+
+        <div id="participantEntriesSection" style="display:none;">
+          <h3><span data-translate="participantEntries">Participant Entries</span>: <span id="entriesCount">0</span></h3>
+          <div id="participantEntriesList" class="entries-list"></div>
+          
+          <div class="draw-controls">
+            <label data-translate="numParticipants">Number to draw:</label>
+            <input id="numParticipantsInput" type="number" min="1" max="50" value="5">
+            <button id="drawParticipantsBtn" class="btn-primary" data-translate="drawParticipants">🎉 Draw Random Participants</button>
+          </div>
+        </div>
+
+        <div id="noEntriesMsg" style="display:none;">
+          <p data-translate="noEntries">No entries yet. Start selection and wait for participants to enter their bracelet numbers.</p>
+        </div>
+      </div>
+
+      <!-- Active Players Section -->
+      <div class="admin-section">
+        <h2>👥 <span data-translate="activePlayers">Active Players</span></h2>
+        <div id="playersList"></div>
+        <p id="noPlayersMsg" data-translate="noPlayers">No players yet</p>
+      </div>
+
+      <!-- Live Chat Monitor -->
+      <div class="admin-section">
+        <h2>💬 <span data-translate="liveChatMonitor">Live Chat Monitor</span></h2>
+        <p class="moderation-info" data-translate="moderationInfo">💡 Click on a message to delete it | Click on a username to kick that user</p>
+        <div id="adminChat"></div>
+        <div class="chat-input-group">
+          <input id="adminMsgInput" type="text" placeholder="Type admin message..." maxlength="200">
+          <button id="adminSendBtn" class="btn-admin" data-translate="sendAsAdmin">Send as Admin</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="admin.js"></script>
+</body>
+</html>

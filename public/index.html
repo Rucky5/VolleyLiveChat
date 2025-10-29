@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Volley-Live | Audience</title>
+  <link rel="stylesheet" href="style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="translations.js"></script>
+</head>
+<body>
+  <header>
+    <div class="header-content">
+      <div class="header-left">
+        <img src="logo.png" alt="Logo" class="header-logo-simple">
+        <div class="header-text-inline">
+          <h1><span data-translate="pageTitle">Volley-Live Chat</span></h1>
+          <p class="subtitle" data-translate="pageSubtitle">Join the conversation & play the guessing game!</p>
+        </div>
+      </div>
+      <div class="language-toggle">
+        <button class="langBtn" class="lang-btn">العربية</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="container">
+    <!-- Join Section -->
+    <div id="joinSection">
+      <div class="welcome-box">
+        <h2 data-translate="welcomeTitle">Welcome to Volley-Live! 👋</h2>
+        <p data-translate="welcomeText">Enter your name to join the live chat and guessing game</p>
+        <input id="nameInput" type="text" placeholder="Enter your name or nickname *" maxlength="20" required>
+        <p id="nameError" class="error-msg" style="display:none;" data-translate="nameError">Please enter your name!</p>
+        <button id="joinBtn" class="btn-primary" data-translate="joinButton">Join Now</button>
+      </div>
+    </div>
+
+    <!-- Game Section -->
+    <div id="gameSection" style="display:none;">
+      <!-- Round Counter -->
+      <div id="roundCounter" class="round-counter" style="display:none;">
+        <span data-translate="round">Round</span>: <span id="currentRound">1</span>/<span id="maxRounds">3</span>
+      </div>
+
+      <!-- Score Display -->
+      <div class="score-board">
+        <div class="team-score">
+          <h3 id="teamAName">Team A</h3>
+          <div class="score" id="scoreA">0</div>
+        </div>
+        <div class="vs" data-translate="vs">VS</div>
+        <div class="team-score">
+          <h3 id="teamBName">Team B</h3>
+          <div class="score" id="scoreB">0</div>
+        </div>
+      </div>
+
+      <!-- Status -->
+      <div id="statusBar" class="status-bar"></div>
+
+      <!-- Timer Display -->
+      <div id="timerDisplay" class="timer-display" style="display:none;">
+        ⏰ <span data-translate="timeRemaining">Time Remaining</span>: 
+        <span id="timerMinutes">2</span>:<span id="timerSeconds">00</span>
+      </div>
+
+      <!-- Chat -->
+      <div class="chat-container">
+        <h3 data-translate="liveChat">💬 Live Chat</h3>
+        <div id="chat"></div>
+        <div class="chat-input-group">
+          <input id="msgInput" type="text" placeholder="Type a message..." maxlength="200">
+          <button id="sendBtn" class="btn-send" data-translate="sendButton">Send</button>
+        </div>
+      </div>
+
+      <!-- Guess Section -->
+      <div id="guessSection" class="guess-section" style="display:none;">
+        <h3 data-translate="makeGuess">🎯 Make Your Guess</h3>
+        <p class="guess-instruction" data-translate="guessInstruction">Who will win this round?</p>
+        <div class="guess-buttons">
+          <button id="guessA" class="btn-guess btn-team-a">
+            <span class="team-name-guess" id="guessTeamAName">Team A</span>
+          </button>
+          <button id="guessB" class="btn-guess btn-team-b">
+            <span class="team-name-guess" id="guessTeamBName">Team B</span>
+          </button>
+        </div>
+        <div id="guessStatus">
+          <p><strong data-translate="yourGuess">Your Guess:</strong> <span id="yourGuess" data-translate="notSelected">Not selected</span></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Game Popup Modal -->
+  <div id="gamePopup" class="modal">
+    <div class="modal-content popup-animate">
+      <h2>🎮 <span data-translate="newGameTitle">NEW GAME STARTED!</span></h2>
+      <div class="popup-round-info">
+        <span data-translate="round">Round</span> <span id="popupRound">1</span>/<span id="popupMaxRounds">3</span>
+      </div>
+      <div class="popup-teams">
+        <span id="popupTeamA">Team A</span>
+        <span class="popup-vs" data-translate="vs">VS</span>
+        <span id="popupTeamB">Team B</span>
+      </div>
+      <!-- Timer in Popup -->
+      <div class="popup-timer">
+        ⏰ <span id="popupTimerMinutes">2</span>:<span id="popupTimerSeconds">00</span>
+      </div>
+      <p class="popup-instruction" data-translate="makeGuessNow">Make your guess now!</p>
+      <div class="popup-guess-buttons">
+        <button id="popupGuessA" class="btn-guess btn-team-a popup-btn">
+          <span id="popupGuessTeamAName">Team A</span>
+        </button>
+        <button id="popupGuessB" class="btn-guess btn-team-b popup-btn">
+          <span id="popupGuessTeamBName">Team B</span>
+        </button>
+      </div>
+      <button id="closePopup" class="btn-secondary" data-translate="decideLater">Decide Later</button>
+    </div>
+  </div>
+
+  <!-- Participant Selection Popup -->
+  <div id="participantPopup" class="modal">
+    <div class="modal-content popup-animate">
+      <h2>🎲 <span data-translate="participantTitle">Interactive Event!</span></h2>
+      <p class="popup-text" data-translate="participantText">Enter your bracelet number to participate</p>
+      <div class="participant-input-group">
+        <input id="braceletInput" type="text" placeholder="Enter bracelet number" maxlength="10">
+        <button id="submitBracelet" class="btn-primary" data-translate="submitNumber">Submit Number</button>
+      </div>
+      <p id="braceletStatus" class="success-msg" style="display:none;"></p>
+      <button id="closeParticipant" class="btn-secondary">Close</button>
+    </div>
+  </div>
+
+  <!-- Winner Popup Modal -->
+  <div id="winnerPopup" class="modal">
+    <div class="modal-content popup-animate">
+      <h2>🎊 <span data-translate="tournamentWinner">TOURNAMENT WINNER!</span> 🎊</h2>
+      <p id="winnerText" class="winner-text"></p>
+      <button id="closeWinnerPopup" class="btn-primary">Close</button>
+    </div>
+  </div>
+
+  <!-- Tournament Complete Popup -->
+  <div id="tournamentCompletePopup" class="modal">
+    <div class="modal-content popup-animate">
+      <h2>🎊 <span data-translate="tournamentComplete">TOURNAMENT COMPLETE!</span> 🎊</h2>
+      <p id="tournamentCompleteText" class="winner-text"></p>
+      <button id="closeTournamentComplete" class="btn-primary">Close</button>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
