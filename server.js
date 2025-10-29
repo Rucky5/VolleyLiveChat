@@ -500,9 +500,11 @@ io.on("connection", (socket) => {
   });
 });
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
 server.listen(PORT, () => {
+  app.listen(PORT, () => {
   console.log(`🚀 Volley-Live server running at http://localhost:${PORT}`);
+});
   console.log(`👥 Audience: http://localhost:${PORT}`);
   console.log(`🔧 Admin: http://localhost:${PORT}/admin`);
 });
