@@ -308,7 +308,12 @@ function updatePlayersList(players) {
   playersList.innerHTML = players.map(p => {
     const statusClass = p.active ? 'status-active' : 'status-eliminated';
     const statusText = p.active ? '✅ Active' : '❌ Eliminated';
-    const guessText = p.guess ? `Guessed: Team ${p.guess}` : 'No guess yet';
+    let guessText = 'No guess yet';
+    if (p.guess === 'A') {
+      guessText = `Guessed: ${teamAInput.value || 'Team A'}`;
+    } else if (p.guess === 'B') {
+      guessText = `Guessed: ${teamBInput.value || 'Team B'}`;
+    }
     
     return `
       <div class="player-card ${statusClass}">

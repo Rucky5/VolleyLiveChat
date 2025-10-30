@@ -698,7 +698,26 @@ button {
   font-weight: 600;
   color: #333;
 }
+/* Fix participant number input visibility */
+#braceletInput {
+  background-color: white !important;
+  color: #333 !important;
+  font-size: 20px !important;
+  padding: 15px !important;
+  border: 2px solid #4CAF50 !important;
+  text-align: center;
+  font-weight: bold;
+}
 
+#braceletInput::placeholder {
+  color: #999 !important;
+}
+
+#braceletInput:focus {
+  outline: 2px solid #45a049 !important;
+  background-color: #ffffff !important;
+  color: #000000 !important;
+}
 .draw-controls input {
   width: 80px;
   padding: 8px;
@@ -961,8 +980,8 @@ button {
   }
 
   .header-logo-simple {
-    width: 60px;
-    height: 60px;
+    width: 75px;
+    height: 75px;
   }
 
   .container {
@@ -1027,6 +1046,59 @@ button {
   
   .draw-controls input {
     width: 100%;
+  }
+  /* Better mobile chat - ADD THIS */
+  .chat-container {
+    margin: 15px 0;
+    padding: 15px;
+  }
+  
+  #chat {
+    max-height: 300px;
+    font-size: 14px;
+  }
+  
+  .message {
+    padding: 10px;
+    margin: 8px 0;
+    font-size: 14px;
+    word-wrap: break-word;
+  }
+  
+  .chat-input-group {
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .chat-input-group input {
+    width: 100%;
+    font-size: 16px; /* Prevents iOS zoom */
+  }
+  
+  .chat-input-group button {
+    width: 100%;
+    padding: 15px;
+  }
+  
+  /* Better mobile guess buttons */
+  .guess-buttons {
+    flex-direction: column;
+    gap: 15px;
+  }
+  
+  .btn-guess {
+    width: 100%;
+    padding: 20px;
+    font-size: 18px;
+  }
+  
+  /* Better mobile popups */
+  .modal-content {
+    width: 95%;
+    margin: 10px;
+    padding: 20px;
+    max-height: 90vh;
+    overflow-y: auto;
   }
 }
 

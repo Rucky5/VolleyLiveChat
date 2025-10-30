@@ -4,7 +4,17 @@ const socket = io();
 let currentLang = localStorage.getItem('language') || 'en';
 document.documentElement.lang = currentLang;
 document.documentElement.dir = currentLang === 'ar' ? 'rtl' : 'ltr';
+// CRITICAL: Reconnection handling
+let myUsername = localStorage.getItem('volleyUsername') || null;
+let hasJoined = localStorage.getItem('volleyHasJoined') === 'true';
 
+// Auto-rejoin on reconnect
+socket.on('connect', () => {
+  console.log('Connected to server');
+  if (hasJoined && myUsername) {
+    socket.emit('rejoin', myUsername);
+  }
+});
 // DOM Elements
 const joinSection = document.getElementById('joinSection');
 const gameSection = document.getElementById('gameSection');
@@ -96,9 +106,37 @@ document.getElementById('joinBtn').onclick = () => {
 };
 
 // Join success
-socket.on('joinSuccess', () => {
+socket.on('joinSuccess', (data) => {
+  myUsername = data.username || document.getElementById('nameInput').value.trim();
+  hasJoined = true;
+  localStorage.setItem('volleyUsername', myUsername);
+  localStorage.setItem('volleyHasJoined', 'true');
+  
   joinSection.style.display = 'none';
   gameSection.style.display = 'block';
+});
+// Handle rejoin - CRITICAL for reconnection
+socket.on('rejoinSuccess', (data) => {
+  console.log('Rejoined successfully!');
+  
+  // Show game section
+  joinSection.style.display = 'none';
+  gameSection.style.display = 'block';
+  
+  // If there's an active game and user hasn't guessed, show popup
+  if (data.gameActive && !hasGuessed) {
+    gamePopup.style.display = 'flex';
+  }
+  
+  // If participant selection active, show popup
+  if (data.participantSelectionActive) {
+    participantPopup.style.display = 'flex';
+  }
+  
+  // Restore guess status
+  if (data.hasGuessed) {
+    hasGuessed = true;
+  }
 });
 
 // Join error

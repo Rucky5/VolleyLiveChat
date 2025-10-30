@@ -47,7 +47,53 @@ io.on("connection", (socket) => {
     guessingDeadline,
     participantSelectionActive
   });
-
+  // Handle rejoin - CRITICAL for reconnection
+  socket.on('rejoin', (username) => {
+    if (!username) return;
+    
+    socket.username = username;
+    
+    // Find if player exists
+    let existingPlayer = Object.values(players).find(p => p.name === username);
+    
+    if (existingPlayer) {
+      // Update socket ID for existing player
+      delete players[existingPlayer.id];
+      existingPlayer.id = socket.id;
+      players[socket.id] = existingPlayer;
+    } else {
+      // Create new player entry
+      players[socket.id] = {
+        id: socket.id,
+        name: username,
+        guess: null,
+        active: true
+      };
+    }
+    
+    // Send current game state
+    socket.emit('rejoinSuccess', {
+      username: username,
+      gameActive: gameActive,
+      participantSelectionActive: participantSelectionActive,
+      hasGuessed: players[socket.id].guess !== null
+    });
+    
+    // Send all current data
+    socket.emit('init', {
+      messages: messages,
+      teams: teams,
+      score: score,
+      currentRound: currentRound,
+      maxRounds: maxRounds,
+      participantSelectionActive: participantSelectionActive
+    });
+    
+    // Update other players
+    io.emit('playersUpdate', Object.values(players));
+    
+    console.log(`✅ ${username} rejoined the chat`);
+  });
   // User joins
   socket.on("join", (name) => {
     // Reject if no name provided
@@ -65,7 +111,7 @@ io.on("connection", (socket) => {
       active: true
     };
 
-    socket.emit("joinSuccess");
+    socket.emit('joinSuccess', { username: name });
 
     const joinMsg = {
       id: Date.now() + Math.random(),
@@ -502,9 +548,7 @@ io.on("connection", (socket) => {
 
 const PORT = process.env.PORT || 10000;
 server.listen(PORT, () => {
-  app.listen(PORT, () => {
   console.log(`🚀 Volley-Live server running at http://localhost:${PORT}`);
-});
   console.log(`👥 Audience: http://localhost:${PORT}`);
   console.log(`🔧 Admin: http://localhost:${PORT}/admin`);
 });
