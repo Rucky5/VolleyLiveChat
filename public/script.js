@@ -106,16 +106,6 @@ document.getElementById('joinBtn').onclick = () => {
 };
 
 // Join success
-socket.on('joinSuccess', (data) => {
-  myUsername = data.username || document.getElementById('nameInput').value.trim();
-  hasJoined = true;
-  localStorage.setItem('volleyUsername', myUsername);
-  localStorage.setItem('volleyHasJoined', 'true');
-  
-  joinSection.style.display = 'none';
-  gameSection.style.display = 'block';
-});
-// Handle rejoin - CRITICAL for reconnection
 socket.on('rejoinSuccess', (data) => {
   console.log('Rejoined successfully!');
   
@@ -123,12 +113,39 @@ socket.on('rejoinSuccess', (data) => {
   joinSection.style.display = 'none';
   gameSection.style.display = 'block';
   
-  // If there's an active game and user hasn't guessed, show popup
-  if (data.gameActive && !hasGuessed) {
-    gamePopup.style.display = 'flex';
+  // Update team names
+  if (data.teams) {
+    updateTeamNames(data.teams);
   }
   
-  // If participant selection active, show popup
+  // If there's an active game
+  if (data.gameActive) {
+    guessSection.style.display = 'block';
+    roundCounter.style.display = 'block';
+    
+    // Update round info
+    if (data.currentRound) {
+      currentRoundElem.textContent = data.currentRound;
+      maxRoundsElem.textContent = data.maxRounds;
+      popupRoundElem.textContent = data.currentRound;
+      popupMaxRoundsElem.textContent = data.maxRounds;
+    }
+    
+    // Show REMAINING time (not restart!)
+    if (data.guessingDeadline && Date.now() < data.guessingDeadline) {
+      startTimer(data.guessingDeadline); // Shows remaining time!
+    }
+    
+    // Show popup if user hasn't guessed yet
+    if (!data.hasGuessed) {
+      gamePopup.style.display = 'flex';
+    }
+    
+    statusBar.textContent = t('gameStarted', currentLang);
+    statusBar.className = 'status-bar status-active';
+  }
+  
+  // Participant selection
   if (data.participantSelectionActive) {
     participantPopup.style.display = 'flex';
   }

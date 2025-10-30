@@ -76,7 +76,11 @@ io.on("connection", (socket) => {
       username: username,
       gameActive: gameActive,
       participantSelectionActive: participantSelectionActive,
-      hasGuessed: players[socket.id].guess !== null
+      hasGuessed: players[socket.id].guess !== null,
+      guessingDeadline: guessingDeadline,
+      currentRound: currentRound,          
+      maxRounds: maxRounds,                
+      teams: teams  
     });
     
     // Send all current data
