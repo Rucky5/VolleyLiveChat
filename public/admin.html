@@ -1,181 +1,495 @@
-<!DOCTYPE html>
-<html lang="en" dir="ltr">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Volley-Live | Admin Dashboard</title>
-  <link rel="stylesheet" href="style.css">
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
-  <script src="/socket.io/socket.io.js"></script>
-  <script src="translations.js"></script>
-</head>
-<body>
-  <!-- Admin Login Screen with Header (Same style as audience page) -->
-  <div id="loginSection">
-    <header>
-      <div class="header-content">
-        <div class="header-left">
-          <img src="logo.png" alt="Logo" class="header-logo-simple">
-          <div class="header-text-inline">
-            <h1><span data-translate="adminDashboard">Admin Dashboard</span></h1>
-            <p class="subtitle" data-translate="adminSubtitle">Control the tournament & manage games</p>
-          </div>
-        </div>
-        <div class="language-toggle">
-          <button class="langBtn" class="lang-btn">العربية</button>
-        </div>
-      </div>
-    </header>
+const socket = io();
 
-    <div class="container">
-      <div class="admin-login-box">
-        <h1>🔐 <span data-translate="adminLogin">Admin Login</span></h1>
-        <p data-translate="adminLoginText">Enter the admin passcode to continue</p>
-        <input id="passcodeInput" type="password" placeholder="Passcode" maxlength="50">
-        <p id="loginError" class="error-msg" style="display:none;" data-translate="wrongPasscode">❌ Wrong passcode!</p>
-        <button id="loginBtn" class="btn-primary" data-translate="loginButton">Login</button>
-      </div>
+// ADMIN AUTO-LOGIN & RECONNECTION
+let isAuthenticated = localStorage.getItem('volleyAdminAuth') === 'true';
+
+// Auto-login on page load
+if (isAuthenticated) {
+  const savedPassword = localStorage.getItem('volleyAdminPass');
+  if (savedPassword) {
+    socket.emit('adminAuth', savedPassword);
+  }
+}
+
+// Current language
+let currentLang = localStorage.getItem('language') || 'en';
+document.documentElement.lang = currentLang;
+document.documentElement.dir = currentLang === 'ar' ? 'rtl' : 'ltr';
+
+// DOM Elements
+const loginSection = document.getElementById('loginSection');
+const adminSection = document.getElementById('adminSection');
+const adminChat = document.getElementById('adminChat');
+const playersList = document.getElementById('playersList');
+const noPlayersMsg = document.getElementById('noPlayersMsg');
+
+// Team names
+const teamAInput = document.getElementById('teamAInput');
+const teamBInput = document.getElementById('teamBInput');
+const adminTeamAName = document.getElementById('adminTeamAName');
+const adminTeamBName = document.getElementById('adminTeamBName');
+const winTeamAName = document.getElementById('winTeamAName');
+const winTeamBName = document.getElementById('winTeamBName');
+
+// Scores
+const adminScoreA = document.getElementById('adminScoreA');
+const adminScoreB = document.getElementById('adminScoreB');
+const scoreAInput = document.getElementById('scoreAInput');
+const scoreBInput = document.getElementById('scoreBInput');
+
+// Round info
+const adminCurrentRound = document.getElementById('adminCurrentRound');
+const adminMaxRounds = document.getElementById('adminMaxRounds');
+
+// Participant selection
+const startParticipantBtn = document.getElementById('startParticipantBtn');
+const endParticipantBtn = document.getElementById('endParticipantBtn');
+const participantEntriesSection = document.getElementById('participantEntriesSection');
+const participantEntriesList = document.getElementById('participantEntriesList');
+const entriesCount = document.getElementById('entriesCount');
+const noEntriesMsg = document.getElementById('noEntriesMsg');
+const numParticipantsInput = document.getElementById('numParticipantsInput');
+const drawParticipantsBtn = document.getElementById('drawParticipantsBtn');
+
+let isAuthenticated = false;
+let currentPlayers = [];
+let currentParticipantEntries = [];
+
+// Language Toggle - Updated to work with all langBtn elements
+document.querySelectorAll('.langBtn').forEach(btn => {
+  btn.onclick = () => {
+    currentLang = currentLang === 'en' ? 'ar' : 'en';
+    localStorage.setItem('language', currentLang);
+    document.documentElement.lang = currentLang;
+    document.documentElement.dir = currentLang === 'ar' ? 'rtl' : 'ltr';
+    updateTranslations();
+    // Update all language buttons
+    document.querySelectorAll('.langBtn').forEach(b => {
+      b.textContent = currentLang === 'en' ? 'العربية' : 'English';
+    });
+  };
+});
+
+// Update all translations on page
+function updateTranslations() {
+  document.querySelectorAll('[data-translate]').forEach(elem => {
+    const key = elem.getAttribute('data-translate');
+    if (translations[currentLang] && translations[currentLang][key]) {
+      if (elem.tagName === 'INPUT' || elem.tagName === 'TEXTAREA') {
+        elem.placeholder = translations[currentLang][key];
+      } else {
+        elem.textContent = translations[currentLang][key];
+      }
+    }
+  });
+}
+
+// Initial translation
+updateTranslations();
+
+// Login
+document.getElementById('loginBtn').onclick = () => {
+  const passcode = document.getElementById('passcodeInput').value;
+  // Save password for auto-login
+  localStorage.setItem('volleyAdminPass', passcode);
+  socket.emit('adminAuth', passcode);
+};
+
+document.getElementById('passcodeInput').addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') {
+    document.getElementById('loginBtn').click();
+  }
+});
+
+socket.on('authSuccess', (data) => {
+  // Save authentication state
+  localStorage.setItem('volleyAdminAuth', 'true');
+  
+  isAuthenticated = true;
+  loginSection.style.display = 'none';
+  adminSection.style.display = 'block';
+  
+  // Restore full game state
+  if (data) {
+    // Update teams
+    if (data.teams) {
+      teamAInput.value = data.teams.A;
+      teamBInput.value = data.teams.B;
+      adminTeamAName.textContent = data.teams.A;
+      adminTeamBName.textContent = data.teams.B;
+      winTeamAName.textContent = data.teams.A;
+      winTeamBName.textContent = data.teams.B;
+    }
+    
+    // Update scores
+    if (data.score) {
+      adminScoreA.textContent = data.score.A;
+      adminScoreB.textContent = data.score.B;
+      scoreAInput.value = data.score.A;
+      scoreBInput.value = data.score.B;
+    }
+    
+    // Update round info
+    if (data.currentRound !== undefined) {
+      adminCurrentRound.textContent = data.currentRound;
+      adminMaxRounds.textContent = data.maxRounds;
+    }
+    
+    // Update game state
+    if (data.gameActive) {
+      console.log('Game is currently active - Round', data.currentRound);
+    }
+    
+    // Update participant selection state
+    if (data.participantSelectionActive) {
+      startParticipantBtn.style.display = 'none';
+      endParticipantBtn.style.display = 'inline-block';
+      participantEntriesSection.style.display = 'block';
+    }
+  }
+  
+  socket.emit('joinAdminRoom');
+  console.log('✅ Admin authenticated');
+});
+
+socket.on('authFailed', () => {
+  const loginError = document.getElementById('loginError');
+  loginError.style.display = 'block';
+  loginError.textContent = t('wrongPasscode', currentLang);
+  document.getElementById('passcodeInput').value = '';
+});
+
+// Initialize
+socket.on('init', (data) => {
+  if (!isAuthenticated) return;
+
+  // Load messages
+  data.messages.forEach(msg => {
+    addMessageToAdminChat(msg);
+  });
+
+  // Update teams
+  if (data.teams) {
+    updateTeamNamesAdmin(data.teams);
+    teamAInput.value = data.teams.A;
+    teamBInput.value = data.teams.B;
+  }
+
+  // Update score
+  if (data.score) {
+    adminScoreA.textContent = data.score.A;
+    adminScoreB.textContent = data.score.B;
+    scoreAInput.value = data.score.A;
+    scoreBInput.value = data.score.B;
+  }
+
+  // Update round info
+  adminCurrentRound.textContent = data.currentRound;
+  adminMaxRounds.textContent = data.maxRounds;
+
+  // Check if participant selection is active
+  if (data.participantSelectionActive) {
+    startParticipantBtn.style.display = 'none';
+    endParticipantBtn.style.display = 'inline-block';
+    participantEntriesSection.style.display = 'block';
+    noEntriesMsg.style.display = 'none';
+  }
+});
+
+// Update team names
+document.getElementById('updateTeamsBtn').onclick = () => {
+  const teamA = teamAInput.value.trim() || "Team A";
+  const teamB = teamBInput.value.trim() || "Team B";
+  socket.emit('updateTeams', { A: teamA, B: teamB });
+};
+
+socket.on('teamsUpdate', (teams) => {
+  updateTeamNamesAdmin(teams);
+});
+
+function updateTeamNamesAdmin(teams) {
+  adminTeamAName.textContent = teams.A;
+  adminTeamBName.textContent = teams.B;
+  winTeamAName.textContent = teams.A;
+  winTeamBName.textContent = teams.B;
+}
+
+// Update score
+document.getElementById('updateScoreBtn').onclick = () => {
+  const scoreA = parseInt(scoreAInput.value) || 0;
+  const scoreB = parseInt(scoreBInput.value) || 0;
+  socket.emit('updateScore', { A: scoreA, B: scoreB });
+};
+
+document.getElementById('resetScoreBtn').onclick = () => {
+  if (confirm(t('confirmReset', currentLang) || 'Reset score to 0-0?')) {
+    socket.emit('updateScore', { A: 0, B: 0 });
+    scoreAInput.value = 0;
+    scoreBInput.value = 0;
+  }
+};
+
+socket.on('scoreUpdate', (newScore) => {
+  adminScoreA.textContent = newScore.A;
+  adminScoreB.textContent = newScore.B;
+  scoreAInput.value = newScore.A;
+  scoreBInput.value = newScore.B;
+  
+  // Flash animation
+  adminScoreA.style.transform = 'scale(1.2)';
+  adminScoreB.style.transform = 'scale(1.2)';
+  setTimeout(() => {
+    adminScoreA.style.transform = 'scale(1)';
+    adminScoreB.style.transform = 'scale(1)';
+  }, 300);
+});
+
+// Start game
+document.getElementById('startGameBtn').onclick = () => {
+  if (confirm(t('confirmStartGame', currentLang) || 'Start a new guessing game with 2-minute timer?')) {
+    socket.emit('startGame');
+  }
+};
+
+// End round
+document.getElementById('endRoundA').onclick = () => {
+  if (confirm(`${winTeamAName.textContent} ${t('wins', currentLang)}?`)) {
+    socket.emit('endRound', 'A');
+  }
+};
+
+document.getElementById('endRoundB').onclick = () => {
+  if (confirm(`${winTeamBName.textContent} ${t('wins', currentLang)}?`)) {
+    socket.emit('endRound', 'B');
+  }
+};
+
+socket.on('gameStarted', ({ round, maxRounds }) => {
+  adminCurrentRound.textContent = round;
+  adminMaxRounds.textContent = maxRounds;
+});
+
+socket.on('roundEnded', () => {
+  // Round info updated via other events
+});
+
+// Participant Selection
+startParticipantBtn.onclick = () => {
+  socket.emit('startParticipantSelection');
+  startParticipantBtn.style.display = 'none';
+  endParticipantBtn.style.display = 'inline-block';
+  participantEntriesSection.style.display = 'block';
+  noEntriesMsg.style.display = 'none';
+  currentParticipantEntries = [];
+  updateParticipantEntriesList();
+};
+
+endParticipantBtn.onclick = () => {
+  if (confirm(t('confirmEndSelection', currentLang) || 'End participant selection?')) {
+    socket.emit('endParticipantSelection');
+    startParticipantBtn.style.display = 'inline-block';
+    endParticipantBtn.style.display = 'none';
+    participantEntriesSection.style.display = 'none';
+    noEntriesMsg.style.display = 'block';
+    currentParticipantEntries = [];
+    updateParticipantEntriesList();
+  }
+};
+
+drawParticipantsBtn.onclick = () => {
+  const count = parseInt(numParticipantsInput.value) || 5;
+  if (currentParticipantEntries.length === 0) {
+    alert(t('noEntries', currentLang) || 'No participants have entered their numbers yet!');
+    return;
+  }
+  if (count > currentParticipantEntries.length) {
+    alert(`Only ${currentParticipantEntries.length} participants available. Cannot draw ${count}.`);
+    return;
+  }
+  if (confirm(`Draw ${count} random participants?`)) {
+    socket.emit('drawRandomParticipants', count);
+  }
+};
+
+socket.on('participantEntriesUpdate', (entries) => {
+  currentParticipantEntries = entries;
+  updateParticipantEntriesList();
+});
+
+function updateParticipantEntriesList() {
+  entriesCount.textContent = currentParticipantEntries.length;
+  
+  if (currentParticipantEntries.length === 0) {
+    participantEntriesList.innerHTML = `<p style="color: #666;">${t('noEntries', currentLang)}</p>`;
+    return;
+  }
+  
+  participantEntriesList.innerHTML = currentParticipantEntries.map(entry => `
+    <div class="entry-item">
+      <span class="entry-name">${entry.name}</span>
+      <span class="entry-number">#${entry.number}</span>
     </div>
-  </div>
+  `).join('');
+}
 
-  <!-- Admin Dashboard (After Login) -->
-  <div id="adminSection" style="display:none;">
-    <header>
-      <div class="header-content">
-        <div class="header-left">
-          <img src="logo.png" alt="Logo" class="header-logo-simple">
-          <div class="header-text-inline">
-            <h1><span data-translate="adminDashboard">Admin Dashboard</span></h1>
-            <p class="subtitle" data-translate="adminSubtitle">Control the tournament & manage games</p>
-          </div>
+socket.on('participantsDrawn', ({ participants }) => {
+  // Handled via chat message, could add visual highlight here
+  const names = participants.map(p => `${p.name} (#${p.number})`).join(', ');
+  alert(`🎉 Selected: ${names}`);
+});
+
+socket.on('participantSelectionEnded', () => {
+  startParticipantBtn.style.display = 'inline-block';
+  endParticipantBtn.style.display = 'none';
+  participantEntriesSection.style.display = 'none';
+  noEntriesMsg.style.display = 'block';
+});
+
+// Players update
+socket.on('playersUpdate', (players) => {
+  currentPlayers = players;
+  updatePlayersList(players);
+});
+
+function updatePlayersList(players) {
+  if (players.length === 0) {
+    playersList.style.display = 'none';
+    noPlayersMsg.style.display = 'block';
+    return;
+  }
+
+  playersList.style.display = 'block';
+  noPlayersMsg.style.display = 'none';
+
+  playersList.innerHTML = players.map(p => {
+    const statusClass = p.active ? 'status-active' : 'status-eliminated';
+    const statusText = p.active ? '✅ Active' : '❌ Eliminated';
+    let guessText = 'No guess yet';
+    if (p.guess === 'A') {
+      guessText = `Guessed: ${teamAInput.value || 'Team A'}`;
+    } else if (p.guess === 'B') {
+      guessText = `Guessed: ${teamBInput.value || 'Team B'}`;
+    }
+    
+    return `
+      <div class="player-card ${statusClass}">
+        <div class="player-info">
+          <strong class="player-name" data-player-id="${p.id}">${p.name}</strong>
+          <span class="player-status">${statusText}</span>
         </div>
-        <div class="language-toggle">
-          <button class="langBtn" class="lang-btn">العربية</button>
-        </div>
+        <div class="player-guess">${guessText}</div>
       </div>
-    </header>
+    `;
+  }).join('');
 
-    <div class="admin-container">
-      
-      <!-- Team Setup Section -->
-      <div class="admin-section">
-        <h2>⚙️ <span data-translate="teamSetup">Team Setup</span></h2>
-        <div class="form-group">
-          <label data-translate="teamALabel">Team A Name:</label>
-          <input id="teamAInput" type="text" placeholder="Team A" maxlength="30">
-        </div>
-        <div class="form-group">
-          <label data-translate="teamBLabel">Team B Name:</label>
-          <input id="teamBInput" type="text" placeholder="Team B" maxlength="30">
-        </div>
-        <button id="updateTeamsBtn" class="btn-primary" data-translate="updateTeams">Update Team Names</button>
+  // Add click handlers for kicking
+  document.querySelectorAll('.player-name').forEach(elem => {
+    elem.onclick = () => {
+      const playerId = elem.getAttribute('data-player-id');
+      const playerName = elem.textContent;
+      if (confirm(`Kick ${playerName} from the chat?`)) {
+        socket.emit('kickPlayer', playerId);
+      }
+    };
+  });
+}
+
+// Chat
+socket.on('chatMessage', (msg) => {
+  addMessageToAdminChat(msg);
+});
+
+function addMessageToAdminChat(msg) {
+  const div = document.createElement('div');
+  div.className = "admin-message-item";
+  div.setAttribute('data-msg-id', msg.id);
+  
+  if (msg.user === "System") {
+    div.classList.add("system-message");
+    div.innerHTML = `
+      <span class="msg-content">${msg.text}</span>
+    `;
+  } else {
+    const adminBadge = msg.isAdmin ? '<span class="admin-badge">👑 Admin</span>' : '';
+    div.innerHTML = `
+      <div class="msg-header">
+        <span class="msg-user" data-user="${msg.user}">${msg.user}</span>
+        ${adminBadge}
+        <button class="delete-msg-btn" onclick="deleteMessage('${msg.id}')">×</button>
       </div>
+      <div class="msg-content">${msg.text}</div>
+    `;
+  }
+  
+  adminChat.appendChild(div);
+  adminChat.scrollTop = adminChat.scrollHeight;
+}
 
-      <!-- Score Section -->
-      <div class="admin-section">
-        <h2>🏐 <span data-translate="currentScore">Current Score</span></h2>
-        <p class="section-description" data-translate="scoreDescription">Update scores based on the live volleyball game. Reset at the start of each new round.</p>
-        <div class="score-display-admin">
-          <div class="team-score-admin">
-            <h3 id="adminTeamAName">Team A</h3>
-            <div class="score-big" id="adminScoreA">0</div>
-          </div>
-          <div class="vs">VS</div>
-          <div class="team-score-admin">
-            <h3 id="adminTeamBName">Team B</h3>
-            <div class="score-big" id="adminScoreB">0</div>
-          </div>
-        </div>
-        <div class="score-controls">
-          <div class="score-input-group">
-            <label data-translate="teamALabel">Team A:</label>
-            <input id="scoreAInput" type="number" min="0" placeholder="0">
-          </div>
-          <div class="score-input-group">
-            <label data-translate="teamBLabel">Team B:</label>
-            <input id="scoreBInput" type="number" min="0" placeholder="0">
-          </div>
-        </div>
-        <div class="score-buttons">
-          <button id="updateScoreBtn" class="btn-primary" data-translate="updateScore">Update Score</button>
-          <button id="resetScoreBtn" class="btn-secondary" data-translate="resetScore">Reset to 0-0</button>
-        </div>
-      </div>
+// Send admin message
+document.getElementById('adminSendBtn').onclick = () => {
+  const text = document.getElementById('adminMsgInput').value.trim();
+  if (text) {
+    socket.emit('adminMessage', { text });
+    document.getElementById('adminMsgInput').value = '';
+  }
+};
 
-      <!-- Game Controls Section -->
-      <div class="admin-section">
-        <h2>🎮 <span data-translate="gameControls">Game Controls</span></h2>
-        
-        <!-- Round Counter -->
-        <div class="round-info">
-          <span data-translate="currentRound">Current Round</span>: 
-          <span id="adminCurrentRound">0</span>/<span id="adminMaxRounds">3</span>
-        </div>
+document.getElementById('adminMsgInput').addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') {
+    document.getElementById('adminSendBtn').click();
+  }
+});
 
-        <button id="startGameBtn" class="btn-success btn-large" data-translate="startNewGame">🎮 Start New Game (2-min timer)</button>
-        <p class="btn-description" data-translate="startDescription">This will start a new guessing round with a 2-minute timer</p>
-        
-        <div class="round-controls">
-          <h3 data-translate="endCurrentRound">End Current Round</h3>
-          <div class="round-buttons">
-            <button id="endRoundA" class="btn-guess btn-team-a">
-              <span id="winTeamAName">Team A</span> <span data-translate="wins">Wins</span>
-            </button>
-            <button id="endRoundB" class="btn-guess btn-team-b">
-              <span id="winTeamBName">Team B</span> <span data-translate="wins">Wins</span>
-            </button>
-          </div>
-          <p class="btn-description" data-translate="declareWinner">Declare the winner to eliminate wrong guessers</p>
-        </div>
-      </div>
+// Delete message
+function deleteMessage(msgId) {
+  if (confirm(t('confirmDelete', currentLang) || 'Delete this message?')) {
+    socket.emit('deleteMessage', msgId);
+  }
+}
 
-      <!-- Participant Selection Section -->
-      <div class="admin-section">
-        <h2>🎲 <span data-translate="participantSelection">Participant Selection</span></h2>
-        <p class="section-description">Start an interactive event to randomly select participants for tryout games.</p>
-        
-        <div class="participant-controls">
-          <button id="startParticipantBtn" class="btn-success" data-translate="startSelection">Start Participant Selection</button>
-          <button id="endParticipantBtn" class="btn-secondary" style="display:none;" data-translate="endSelection">End Selection</button>
-        </div>
+socket.on('messageDeleted', (msgId) => {
+  const messages = adminChat.querySelectorAll('.admin-message-item');
+  messages.forEach(msg => {
+    if (msg.getAttribute('data-msg-id') == msgId) {
+      msg.style.opacity = '0';
+      setTimeout(() => msg.remove(), 300);
+    }
+  });
+});
 
-        <div id="participantEntriesSection" style="display:none;">
-          <h3><span data-translate="participantEntries">Participant Entries</span>: <span id="entriesCount">0</span></h3>
-          <div id="participantEntriesList" class="entries-list"></div>
-          
-          <div class="draw-controls">
-            <label data-translate="numParticipants">Number to draw:</label>
-            <input id="numParticipantsInput" type="number" min="1" max="50" value="5">
-            <button id="drawParticipantsBtn" class="btn-primary" data-translate="drawParticipants">🎉 Draw Random Participants</button>
-          </div>
-        </div>
+// Error handling
+socket.on('error', ({ msg }) => {
+  alert(msg);
+});
+// Listen for updates from OTHER admins - MULTI-ADMIN SYNC
+socket.on('adminTeamsUpdate', (teams) => {
+  teamAInput.value = teams.A;
+  teamBInput.value = teams.B;
+  adminTeamAName.textContent = teams.A;
+  adminTeamBName.textContent = teams.B;
+  winTeamAName.textContent = teams.A;
+  winTeamBName.textContent = teams.B;
+  console.log('🔄 Teams updated by another admin');
+});
 
-        <div id="noEntriesMsg" style="display:none;">
-          <p data-translate="noEntries">No entries yet. Start selection and wait for participants to enter their bracelet numbers.</p>
-        </div>
-      </div>
+socket.on('adminScoreUpdate', (newScore) => {
+  adminScoreA.textContent = newScore.A;
+  adminScoreB.textContent = newScore.B;
+  scoreAInput.value = newScore.A;
+  scoreBInput.value = newScore.B;
+  console.log('🔄 Score updated by another admin');
+});
 
-      <!-- Active Players Section -->
-      <div class="admin-section">
-        <h2>👥 <span data-translate="activePlayers">Active Players</span></h2>
-        <div id="playersList"></div>
-        <p id="noPlayersMsg" data-translate="noPlayers">No players yet</p>
-      </div>
+socket.on('adminGameStarted', (data) => {
+  adminCurrentRound.textContent = data.currentRound;
+  adminMaxRounds.textContent = data.maxRounds;
+  console.log('🔄 Game started by another admin - Round', data.currentRound);
+});
 
-      <!-- Live Chat Monitor -->
-      <div class="admin-section">
-        <h2>💬 <span data-translate="liveChatMonitor">Live Chat Monitor</span></h2>
-        <p class="moderation-info" data-translate="moderationInfo">💡 Click on a message to delete it | Click on a username to kick that user</p>
-        <div id="adminChat"></div>
-        <div class="chat-input-group">
-          <input id="adminMsgInput" type="text" placeholder="Type admin message..." maxlength="200">
-          <button id="adminSendBtn" class="btn-admin" data-translate="sendAsAdmin">Send as Admin</button>
-        </div>
-      </div>
-
-    </div>
-  </div>
-
-  <script src="admin.js"></script>
-</body>
-</html>
+// Sync round ended
+socket.on('roundEnded', (data) => {
+  if (data.currentRound) {
+    adminCurrentRound.textContent = data.currentRound;
+  }
+  console.log('🔄 Round ended by another admin');
+});

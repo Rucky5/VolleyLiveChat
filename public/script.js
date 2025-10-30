@@ -106,14 +106,30 @@ document.getElementById('joinBtn').onclick = () => {
 };
 
 // Join success
+socket.on('joinSuccess', (data) => {
+  myUsername = (data && data.username) || document.getElementById('nameInput').value.trim();
+  hasJoined = true;
+  localStorage.setItem('volleyUsername', myUsername);
+  localStorage.setItem('volleyHasJoined', 'true');
+  
+  joinSection.style.display = 'none';
+  gameSection.style.display = 'block';
+  // HIDE all popups on join
+  gamePopup.style.display = 'none';
+  participantPopup.style.display = 'none';
+  winnerPopup.style.display = 'none';
+  tournamentCompletePopup.style.display = 'none';
+
+});
+// Handle rejoin - CRITICAL for reconnection
 socket.on('rejoinSuccess', (data) => {
-  console.log('Rejoined successfully!');
+  console.log('Rejoined successfully!', data);
   
   // Show game section
   joinSection.style.display = 'none';
   gameSection.style.display = 'block';
   
-  // Update team names
+  // Update team names if available
   if (data.teams) {
     updateTeamNames(data.teams);
   }
@@ -139,15 +155,26 @@ socket.on('rejoinSuccess', (data) => {
     // Show popup if user hasn't guessed yet
     if (!data.hasGuessed) {
       gamePopup.style.display = 'flex';
+    } else {
+      gamePopup.style.display = 'none';
     }
     
     statusBar.textContent = t('gameStarted', currentLang);
     statusBar.className = 'status-bar status-active';
+  } else {
+    // No active game - hide game-related popups
+    gamePopup.style.display = 'none';
+    guessSection.style.display = 'none';
+    roundCounter.style.display = 'none';
   }
   
-  // Participant selection
-  if (data.participantSelectionActive) {
+  // Participant selection - ONLY show if CURRENTLY active
+  console.log('Participant selection active:', data.participantSelectionActive);
+  if (data.participantSelectionActive === true) {
     participantPopup.style.display = 'flex';
+  } else {
+    // Make sure it's hidden if not active
+    participantPopup.style.display = 'none';
   }
   
   // Restore guess status

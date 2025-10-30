@@ -47,6 +47,7 @@ io.on("connection", (socket) => {
     guessingDeadline,
     participantSelectionActive
   });
+
   // Handle rejoin - CRITICAL for reconnection
   socket.on('rejoin', (username) => {
     if (!username) return;
@@ -71,16 +72,16 @@ io.on("connection", (socket) => {
       };
     }
     
-    // Send current game state
+    // Send current game state with ALL info
     socket.emit('rejoinSuccess', {
       username: username,
       gameActive: gameActive,
       participantSelectionActive: participantSelectionActive,
       hasGuessed: players[socket.id].guess !== null,
       guessingDeadline: guessingDeadline,
-      currentRound: currentRound,          
-      maxRounds: maxRounds,                
-      teams: teams  
+      currentRound: currentRound,
+      maxRounds: maxRounds,
+      teams: teams
     });
     
     // Send all current data
@@ -98,6 +99,7 @@ io.on("connection", (socket) => {
     
     console.log(`✅ ${username} rejoined the chat`);
   });
+
   // User joins
   socket.on("join", (name) => {
     // Reject if no name provided
@@ -110,6 +112,7 @@ io.on("connection", (socket) => {
     
     // Initialize player
     players[socket.id] = {
+      id: socket.id,
       name: socket.username,
       guess: null,
       active: true
@@ -153,15 +156,33 @@ io.on("connection", (socket) => {
     socket.isAdmin = ok;
     
     if (ok) {
-      socket.emit("authSuccess");
+      socket.join("admin-room"); // Join admin room immediately
+      
+      // Send full game state to admin
+      socket.emit("authSuccess", {
+        teams: teams,
+        score: score,
+        gameActive: gameActive,
+        currentRound: currentRound,
+        maxRounds: maxRounds,
+        guessingDeadline: guessingDeadline,
+        participantSelectionActive: participantSelectionActive
+      });
+      
       console.log("🔑 Admin authenticated");
       
-      // Send current player list to admin
+      // Send current player list
       const playerList = Object.entries(players).map(([id, p]) => ({
         id,
         ...p
       }));
       socket.emit("playersUpdate", playerList);
+      
+      // Send participant entries if selection is active
+      if (participantSelectionActive) {
+        const entriesList = Object.values(participantEntries);
+        socket.emit("participantEntriesUpdate", entriesList);
+      }
     } else {
       socket.emit("authFailed");
       console.log("❌ Wrong admin password");
@@ -189,6 +210,7 @@ io.on("connection", (socket) => {
     if (!socket.isAdmin) return;
     teams = { A: A || "Team A", B: B || "Team B" };
     io.emit("teamsUpdate", teams);
+    io.to("admin-room").emit("adminTeamsUpdate", teams); // Sync all admins
     console.log(`🏐 Teams updated: ${teams.A} vs ${teams.B}`);
   });
 
@@ -197,6 +219,7 @@ io.on("connection", (socket) => {
     if (!socket.isAdmin) return;
     score = { A: A || 0, B: B || 0 };
     io.emit("scoreUpdate", score);
+    io.to("admin-room").emit("adminScoreUpdate", score); // Sync all admins
     console.log(`📊 Score updated: ${score.A} - ${score.B}`);
   });
 
@@ -246,6 +269,13 @@ io.on("connection", (socket) => {
       if (players[id].active) {
         players[id].guess = null;
       }
+    });
+
+    // Notify ALL admins about game start
+    io.to("admin-room").emit("adminGameStarted", {
+      currentRound: currentRound,
+      maxRounds: maxRounds,
+      deadline: guessingDeadline
     });
 
     // Notify all clients with popup and timer
@@ -357,7 +387,8 @@ io.on("connection", (socket) => {
       eliminated,
       survived,
       remaining: activePlayers.length,
-      total: totalPlayers
+      total: totalPlayers,
+      currentRound: currentRound
     });
 
     const winnerName = teams[winnerTeam];
